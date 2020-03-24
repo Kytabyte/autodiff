@@ -131,7 +131,7 @@ class Var:
     # Gradient Functionality #
     ##########################
 
-    def gradient(self, grad=None):
+    def backward(self, grad=None):
         """
         Do automatic differentiation on this Var, w.r.t all `Var`s this variable is dependent on.
         One can define the base gradient by setting `grad`, otherwise the base gradient will be 1.
