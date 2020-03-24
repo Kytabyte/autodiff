@@ -3,6 +3,9 @@ import math
 from .var import Var
 
 
+#################################
+# Public Function for Operators #
+#################################
 def add(x1, x2) -> Var:
     return _AddOp(x1, x2)
 
@@ -35,14 +38,25 @@ def pow(x, p):
 # Actual Implementation of All Operators #
 ##########################################
 
+#
 # All Operators needs to override two static method
 # 1. compute(*inputs: Var or Python Real Number) -> Var
-#   Consume a list of Var or Python number to return a val after executing the operator
-# 2. gradient(grad: float, output: Var, *inputs: Var or Python Real) -> List[float or None]
-#   return the accumulative gradient of output w.r.t all Var inputs. Return None if the input
-#   is a Python Number
+#   Consume a list of Var or Python number to return a val after
+#   executing the operator
+# 2. gradient(grad: float, output: Var, *inputs: Var or Real) -> Tuple[float]
+#   return the accumulative gradient of output w.r.t all Var inputs.
+#   Return None if the input is a Python Number
 #
-# Every operator will add all inputs to output Var's `_parents`, and add itself to output Var's `_op`
+# Every operator will add all inputs to output Var's `_parents`,
+#   and add itself to output Var's `_op`
+#
+# Variable names obeys the following convention:
+# 1. input variables (Var or Number) are called `x1`, `x2`, ..., `xn`,
+#    except for some other more clear conventions (e.g pow(x, p))
+# 2. output variable (Var) is called y
+# 3. the value of a Var `x` is called `x_val`
+# 4. the gradient of a Var `x` is called `x_grad`
+#
 class _Op:
     def __new__(cls, *inputs):
         output = cls.compute(*inputs)

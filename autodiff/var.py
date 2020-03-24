@@ -37,7 +37,8 @@ class Var:
         """
         Return the gradient of Var
 
-        Returns: A Python Number represents the gradient of this Var. None if no gradient
+        Returns: A Python Number represents the gradient of this Var. None if
+                no gradient
         """
         return self._grad
 
@@ -46,7 +47,8 @@ class Var:
         """
         Return the reference of this Variable.
 
-        Returns: (str) the reference name of this variable. None if this variable has no name.
+        Returns: (str) the reference name of this variable. None if this
+                variable has no name.
         """
         return self._ref
 
@@ -133,11 +135,12 @@ class Var:
 
     def backward(self, grad=None):
         """
-        Do automatic differentiation on this Var, w.r.t all `Var`s this variable is dependent on.
-        One can define the base gradient by setting `grad`, otherwise the base gradient will be 1.
+        Do automatic differentiation on this Var, w.r.t all `Var`s this
+        variable is dependent on. One can define the base gradient by setting
+        `grad`, otherwise the base gradient will be 1.
 
-        After calling gradient(), all `Var`s this var depends on will have gradient, by calling var.grad
-        on other `Var`s.
+        After calling gradient(), all `Var`s this var depends on will have
+        gradient, by calling var.grad on other `Var`s.
 
         Args:
             grad: Base gradient to propagate
@@ -147,47 +150,68 @@ class Var:
             engine.activate()
             engine.accumulate(1. if grad is None else grad)
 
+        # solve dependency
         for parent in self._parents:
             if isinstance(parent, Var):
                 parent._start_task()
 
+        # calculate and propagate gradient
         self._propagate()
 
     def _start_task(self, task_id=None):
         # TODO: can add task_id to identify current task
 
-        if not self._engine.is_working():
-            self._engine.activate()
-            self._engine.add_dependency()
+        # Whenever this function is called, this node is one
+        # of the parent of the callers. engine will increment
+        # the dependency that this node depends on.
+
+        engine = self._engine
+
+        # the engine.is_working() has a side functionality of checking
+        # if this node is visited or not. If this node is not visited yet,
+        # it will propagate _start_task() to its parents. Otherwise, only
+        # a dependency will be added.
+        if not engine.is_working():
+            engine.activate()
+            engine.add_dependency()
             for parent in self._parents:
                 if isinstance(parent, Var):
                     parent._start_task()
         else:
-            self._engine.add_dependency()
+            engine.add_dependency()
 
     def _propagate(self):
+        # this node has already have all gradient of its dependencies
+        # and is ready to propogate the dependency to its parents
         grad = self._engine.get_grad()
 
         if self._is_leaf():
+            # only leaf nodes requires grad, and no need to propagate
             self._grad = grad
         else:
+            # calculate gradient of self w.r.t each of self._parents,
+            # and propagate the gradient to them
             grads = self._op.gradient(grad, self.val, *self._parents)
             for grad, parent in zip(grads, self._parents):
                 if isinstance(parent, Var) and grad is not None:
                     parent._do_task(grad)
 
+        # finish the task
         self._end_task()
 
     def _do_task(self, grad):
-        self._engine.accumulate(grad)
-        if not self._engine.zero_dependency():
-            self._engine.del_dependency()
+        # accumulate gradient from its dependency, remove one dependency
+        # from engine. Propagate the graident if all dependency are resolved.
+        engine = self._engine
 
-        if self._engine.ready_backward():
-            # dependency has been solved
+        engine.accumulate(grad)
+        engine.del_dependency()
+
+        if engine.ready_backward():
             self._propagate()
 
     def _end_task(self):
+        # Finish the task
         self._engine.reset()
 
     def detach(self):
