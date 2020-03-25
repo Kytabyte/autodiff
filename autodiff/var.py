@@ -8,6 +8,8 @@ from .engine import GradEngine
 
 
 class Var:
+    __slots__ = {'_val', '_ref', '_grad', '_op', '_parents', '_engine'}
+
     def __init__(self, val, *, ref=None):
         """
 
@@ -153,34 +155,34 @@ class Var:
         # solve dependency
         for parent in self._parents:
             if isinstance(parent, Var):
-                parent._start_task()
+                parent._solve_dependency()
 
         # calculate and propagate gradient
-        self._propagate()
+        self._propagate_grad()
 
-    def _start_task(self, task_id=None):
+    def _solve_dependency(self, task_id=None):
         # TODO: can add task_id to identify current task
 
         # Whenever this function is called, this node is one
-        # of the parent of the callers. engine will increment
+        # of the parent of the caller. engine will increment
         # the dependency that this node depends on.
 
         engine = self._engine
 
         # the engine.is_working() has a side functionality of checking
         # if this node is visited or not. If this node is not visited yet,
-        # it will propagate _start_task() to its parents. Otherwise, only
+        # it will propagate _solve_dependency() to its parents. Otherwise, only
         # a dependency will be added.
         if not engine.is_working():
             engine.activate()
             engine.add_dependency()
             for parent in self._parents:
                 if isinstance(parent, Var):
-                    parent._start_task()
+                    parent._solve_dependency()
         else:
             engine.add_dependency()
 
-    def _propagate(self):
+    def _propagate_grad(self):
         # this node has already have all gradient of its dependencies
         # and is ready to propogate the dependency to its parents
         grad = self._engine.get_grad()
@@ -194,12 +196,12 @@ class Var:
             grads = self._op.gradient(grad, self.val, *self._parents)
             for grad, parent in zip(grads, self._parents):
                 if isinstance(parent, Var) and grad is not None:
-                    parent._do_task(grad)
+                    parent._accumulate_grad(grad)
 
         # finish the task
-        self._end_task()
+        self._done_propagate()
 
-    def _do_task(self, grad):
+    def _accumulate_grad(self, grad):
         # accumulate gradient from its dependency, remove one dependency
         # from engine. Propagate the graident if all dependency are resolved.
         engine = self._engine
@@ -208,13 +210,13 @@ class Var:
         engine.del_dependency()
 
         if engine.ready_backward():
-            self._propagate()
+            self._propagate_grad()
 
-    def _end_task(self):
+    def _done_propagate(self):
         # Finish the task
         self._engine.reset()
 
     def detach(self):
         self._parents = ()
         self._grad = None
-        self._end_task()
+        self._done_propagate()
